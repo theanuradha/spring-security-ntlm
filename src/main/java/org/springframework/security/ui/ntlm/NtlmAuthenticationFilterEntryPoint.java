@@ -36,13 +36,15 @@ import org.springframework.util.Assert;
  * @author Davide Baroncelli
  * @author Edward Smith
  * @author Alois Cochard
+ * @author Edouard De Oliveira
+ * 
  * @version $Id: NtlmProcessingFilterEntryPoint.java 3240 2008-08-08 16:44:13Z luke_t $
  */
 public class NtlmAuthenticationFilterEntryPoint implements AuthenticationEntryPoint {
 
     //~ Static fields/initializers =====================================================================================
 
-    private static final Log logger = LogFactory.getLog(NtlmAuthenticationFilterEntryPoint.class);
+    private static final Log LOGGER = LogFactory.getLog(NtlmAuthenticationFilterEntryPoint.class);
 
     //~ Instance fields ================================================================================================
 
@@ -86,6 +88,7 @@ public class NtlmAuthenticationFilterEntryPoint implements AuthenticationEntryPo
             resp.setContentLength(0);
             resp.flushBuffer();
 
+            LOGGER.debug("NTLM auth exception: ", authException);
             return;
         }
 

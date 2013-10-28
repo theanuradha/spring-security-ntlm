@@ -53,7 +53,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.WebAuthenticationDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.util.Assert;
 import org.springframework.web.filter.GenericFilterBean;
@@ -82,12 +82,13 @@ import org.springframework.web.filter.GenericFilterBean;
  * @author Davide Baroncelli
  * @author Edward Smith
  * @author Alois Cochard
+ * @author Edouard De Oliveira
  */
 public class NtlmAuthenticationFilter extends GenericFilterBean implements InitializingBean {
 
     //~ Static fields/initializers =====================================================================================
 
-    private static Log logger = LogFactory.getLog(NtlmAuthenticationFilter.class);
+    private static Log LOGGER = LogFactory.getLog(NtlmAuthenticationFilter.class);
 
     private static final String STATE_ATTR = "SpringSecurityNtlm";
 
@@ -125,7 +126,7 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
 
     private AuthenticationManager authenticationManager;
 
-    private AuthenticationDetailsSource authenticationDetailsSource = new WebAuthenticationDetailsSource();
+    private AuthenticationDetailsSource<HttpServletRequest, WebAuthenticationDetails> authenticationDetailsSource = new WebAuthenticationDetailsSource();
 
     //~ Methods ========================================================================================================
 
@@ -167,17 +168,19 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
         authRequest.setDetails(authenticationDetailsSource.buildDetails(request));
 
         // Place the last username attempted into HttpSession for views
-        session.setAttribute(UsernamePasswordAuthenticationFilter.SPRING_SECURITY_LAST_USERNAME_KEY, authRequest.getName());
+        // 		session.setAttribute(UsernamePasswordAuthenticationFilter.SPRING_SECURITY_LAST_USERNAME_KEY, authRequest.getName());
+        // Replace in your code by :
+        // SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         // Backup the current authentication in case of an AuthenticationException
         backupAuth = SecurityContextHolder.getContext().getAuthentication();
 
         try {
-            // Authenitcate the user with the authentication manager
+            // Authenticate the user with the authentication manager
             authResult = authenticationManager.authenticate(authRequest);
         } catch (AuthenticationException failed) {
-            if (logger.isInfoEnabled()) {
-                logger.info("Authentication request for user: " + authRequest.getName() + " failed: " + failed.toString());
+            if (LOGGER.isInfoEnabled()) {
+                LOGGER.info("Authentication request for user: " + authRequest.getName() + " failed: " + failed.toString());
             }
 
             // Reset the backup Authentication object and rethrow the AuthenticationException
@@ -185,7 +188,7 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
 
             if (retryOnAuthFailure
                     && (failed instanceof AuthenticationCredentialsNotFoundException || failed instanceof InsufficientAuthenticationException)) {
-                logger.debug("Restart NTLM authentication handshake due to AuthenticationException");
+                LOGGER.debug("Restart NTLM authentication handshake due to AuthenticationException");
                 session.setAttribute(STATE_ATTR, BEGIN);
                 throw new NtlmBeginHandshakeException();
             }
@@ -210,11 +213,11 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
         // Start NTLM negotiations the first time through the filter
         if (ntlmState == null) {
             if (forceIdentification) {
-                logger.debug("Starting NTLM handshake");
+                LOGGER.debug("Starting NTLM handshake");
                 session.setAttribute(STATE_ATTR, BEGIN);
                 throw new NtlmBeginHandshakeException();
             } else {
-                logger.debug("NTLM handshake not yet started");
+                LOGGER.debug("NTLM handshake not yet started");
                 session.setAttribute(STATE_ATTR, DELAYED);
             }
         }
@@ -227,20 +230,20 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
         if (ntlmState != COMPLETE && authMessage != null && authMessage.startsWith("NTLM ")) {
             final UniAddress dcAddress = this.getDCAddress(session);
             if (ntlmState == BEGIN) {
-                logger.debug("Processing NTLM Type 1 Message");
+                LOGGER.debug("Processing NTLM Type 1 Message");
                 session.setAttribute(STATE_ATTR, NEGOTIATE);
                 this.processType1Message(authMessage, session, dcAddress);
             } else {
-                logger.debug("Processing NTLM Type 3 Message");
+                LOGGER.debug("Processing NTLM Type 3 Message");
                 final NtlmPasswordAuthentication auth = this.processType3Message(authMessage, session, dcAddress);
-                logger.debug("NTLM negotiation complete");
+                LOGGER.debug("NTLM negotiation complete");
                 this.logon(session, dcAddress, auth);
                 session.setAttribute(STATE_ATTR, COMPLETE);
 
                 // Do not reauthenticate the user in Spring Security during an IE POST
                 final Authentication myCurrentAuth = SecurityContextHolder.getContext().getAuthentication();
                 if (myCurrentAuth == null || myCurrentAuth instanceof AnonymousAuthenticationToken) {
-                    logger.debug("Authenticating user credentials");
+                    LOGGER.debug("Authenticating user credentials");
                     this.authenticate(request, response, session, auth);
                 }
             }
@@ -314,14 +317,14 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
     private void logon(final HttpSession session, final UniAddress dcAddress, final NtlmPasswordAuthentication auth) throws IOException {
         try {
             SmbSession.logon(dcAddress, auth);
-            if (logger.isDebugEnabled()) {
-                logger.debug(auth + " successfully authenticated against " + dcAddress);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(auth + " successfully authenticated against " + dcAddress);
             }
         } catch (SmbAuthException e) {
-            logger.error("Credentials " + auth + " were not accepted by the domain controller " + dcAddress);
+            LOGGER.error("Credentials " + auth + " were not accepted by the domain controller " + dcAddress);
 
             if (retryOnAuthFailure) {
-                logger.debug("Restarting NTLM authentication handshake");
+                LOGGER.debug("Restarting NTLM authentication handshake");
                 session.setAttribute(STATE_ATTR, BEGIN);
                 throw new NtlmBeginHandshakeException();
             }
@@ -372,7 +375,7 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
         return (request.getMethod().equalsIgnoreCase("POST") && ua != null && ua.indexOf("MSIE") != -1);
     }
 
-    public void setAuthenticationDetailsSource(AuthenticationDetailsSource authenticationDetailsSource) {
+    public void setAuthenticationDetailsSource(AuthenticationDetailsSource<HttpServletRequest, WebAuthenticationDetails> authenticationDetailsSource) {
         Assert.notNull(authenticationDetailsSource, "authenticationDetailsSource cannot be null");
         this.authenticationDetailsSource = authenticationDetailsSource;
     }
@@ -438,7 +441,7 @@ public class NtlmAuthenticationFilter extends GenericFilterBean implements Initi
     public void setJcifsProperties(Properties props) {
         String name;
 
-        for (Enumeration e = props.keys(); e.hasMoreElements();) {
+        for (Enumeration<?> e = props.keys(); e.hasMoreElements();) {
             name = (String) e.nextElement();
             if (name.startsWith("jcifs.")) {
                 Config.setProperty(name, props.getProperty(name));

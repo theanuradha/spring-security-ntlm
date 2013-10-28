@@ -22,13 +22,13 @@ import org.springframework.security.ui.ntlm.NtlmUsernamePasswordAuthenticationTo
  *
  * @author sylvain.mougenot
  * @author Alois Cochard
- *
+ * @author Edouard De Oliveira
  */
 public class NtlmAwareLdapAuthenticator extends BindAuthenticator {
 
     //~ Static fields/initializers =====================================================================================
 
-    private static final Log logger = LogFactory.getLog(NtlmAwareLdapAuthenticator.class);
+    private static final Log LOGGER = LogFactory.getLog(NtlmAwareLdapAuthenticator.class);
 
     //~ Constructors ===================================================================================================
 
@@ -54,15 +54,15 @@ public class NtlmAwareLdapAuthenticator extends BindAuthenticator {
             throw new BadCredentialsException("Unauthenticated NTLM authentication token found");
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("authenticate(NtlmUsernamePasswordAuthenticationToken) - start"); //$NON-NLS-1$
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("authenticate(NtlmUsernamePasswordAuthenticationToken) - start"); //$NON-NLS-1$
         }
 
         final String userName = authentication.getName();
         DirContextOperations user = null;
 
         // If DN patterns are configured, try authenticating with them directly
-        Iterator myDns = getUserDns(userName).iterator();
+        Iterator<String> myDns = getUserDns(userName).iterator();
 
         // tries them all until we found something
         while (myDns.hasNext() && (user == null)) {
@@ -73,7 +73,7 @@ public class NtlmAwareLdapAuthenticator extends BindAuthenticator {
         // and authenticate with the returned DN.
         if ((user == null) && (getUserSearch() != null)) {
             DirContextOperations userFromSearch = getUserSearch().searchForUser(userName);
-            // lancer l'identificvation
+            // lancer l'identification
             user = loadUser(userFromSearch.getDn().toString(), userName);
         }
 
@@ -82,8 +82,8 @@ public class NtlmAwareLdapAuthenticator extends BindAuthenticator {
             throw new BadCredentialsException(messages.getMessage("BindAuthenticator.badCredentials", "Bad credentials"));
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("authenticate(NtlmUsernamePasswordAuthenticationToken) - end"); //$NON-NLS-1$
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("authenticate(NtlmUsernamePasswordAuthenticationToken) - end"); //$NON-NLS-1$
         }
         return user;
     }
@@ -101,8 +101,8 @@ public class NtlmAwareLdapAuthenticator extends BindAuthenticator {
         } catch (NameNotFoundException e) {
             // This will be thrown if an invalid user name is used and the method may
             // be called multiple times to try different names, so we trap the exception.
-            if (logger.isDebugEnabled()) {
-                logger.debug("Failed to load user " + aUserDn + ": " + e.getMessage(), e);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Failed to load user " + aUserDn + ": " + e.getMessage(), e);
             }
         }
         return null;
